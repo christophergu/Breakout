@@ -9,5 +9,5 @@
 #import <UIKit/UIKit.h>
 
 @interface BlockView : UIView
-
+@property (weak, nonatomic) UIImageView *blockImage;
 @end

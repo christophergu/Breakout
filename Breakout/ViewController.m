@@ -18,19 +18,23 @@
     UICollisionBehavior *collisionBehavior;
     UIDynamicItemBehavior *paddleDynamicBehavior;
     UIDynamicItemBehavior *ballDynamicBehavior;
-    UIDynamicItemBehavior *wallDynamicBehavior;
     UIDynamicItemBehavior *bottomSideDynamicBehavior;
     UIDynamicItemBehavior *blockDynamicBehavior;
 }
 
-@property (strong, nonatomic) IBOutlet UIView *paddleView;
-@property (strong, nonatomic) IBOutlet UIView *ballView;
-@property (strong, nonatomic) IBOutlet UIView *topSide;
-@property (strong, nonatomic) IBOutlet UIView *leftSide;
-@property (strong, nonatomic) IBOutlet UIView *rightSide;
-@property (strong, nonatomic) IBOutlet UILabel *scoreLabel;
+@property (weak, nonatomic) IBOutlet UIView *paddleView;
+@property (weak, nonatomic) IBOutlet UIView *ballView;
+@property (weak, nonatomic) IBOutlet UIView *bottomSideView;
+@property (weak, nonatomic) IBOutlet UILabel *scoreLabel;
+@property (weak, nonatomic) IBOutlet UILabel *livesLabel;
+@property (weak, nonatomic) IBOutlet UIButton *ballShootButton;
+@property int livesCounter;
+@property BOOL loaded;
+@property (nonatomic) NSMutableArray *blocks;
+@property (nonatomic) UIAlertView *gameOverAlert;
+@property (nonatomic) UIAlertView *winnerAlert;
 
-@property (strong, nonatomic) NSMutableArray *blocks;
+
 
 @end
 
@@ -42,31 +46,46 @@
     [self gameStart];
 }
 
-#pragma mark - game start methods
+//An example of how to add an image to a blockView
+//- (void)viewWillAppear:(BOOL)animated
+//{
+//    [super viewWillAppear:animated];
+//    
+//    self.view.layer.contents = (__bridge id)[UIImage imageNamed:@"WonderWoman"].CGImage;
+//}
+
+#pragma mark - initialization methods
 
 - (void)gameStart
 {
+    self.scoreLabel.text = @"0";
+    self.livesCounter = 5;
+    self.livesLabel.text = [NSString stringWithFormat:@"%i",self.livesCounter];
+    
+    self.ballShootButton.alpha = 0.0;
+    self.ballView.alpha = 0.0;
+    
+    [self behaviorStart];
+    [self blockCreator];
+    
+    self.loaded = YES;
+}
+
+- (void)behaviorStart
+{
     dynamicAnimator = [[UIDynamicAnimator alloc] initWithReferenceView:self.view];
-    pushBehavior = [[UIPushBehavior alloc] initWithItems:@[self.ballView] mode:UIPushBehaviorModeInstantaneous];
-    collisionBehavior = [[UICollisionBehavior alloc] initWithItems:@[self.ballView, self.paddleView, self.topSide, self.leftSide, self.rightSide]];
+    collisionBehavior = [[UICollisionBehavior alloc] initWithItems:@[self.ballView, self.paddleView, self.bottomSideView]];
     ballDynamicBehavior = [[UIDynamicItemBehavior alloc] initWithItems:@[self.ballView]];
     paddleDynamicBehavior = [[UIDynamicItemBehavior alloc] initWithItems:@[self.paddleView]];
-    wallDynamicBehavior = [[UIDynamicItemBehavior alloc] initWithItems:@[self.topSide, self.leftSide, self.rightSide]];
-    
-    self.ballView.center = self.view.center;
+    bottomSideDynamicBehavior = [[UIDynamicItemBehavior alloc] initWithItems:@[self.bottomSideView]];
 
-    pushBehavior.pushDirection = CGVectorMake(0.5, 1.0);
-    pushBehavior.active = YES;
-    pushBehavior.magnitude = 0.15;
-    [dynamicAnimator addBehavior:pushBehavior];
-    
     paddleDynamicBehavior.allowsRotation = NO;
     paddleDynamicBehavior.density = 10000;
     [dynamicAnimator addBehavior:paddleDynamicBehavior];
     
-    wallDynamicBehavior.allowsRotation = NO;
-    wallDynamicBehavior.density = 99999;
-    [dynamicAnimator addBehavior:wallDynamicBehavior];
+    bottomSideDynamicBehavior.allowsRotation = NO;
+    bottomSideDynamicBehavior.density = 10000;
+    [dynamicAnimator addBehavior:bottomSideDynamicBehavior];
     
     bottomSideDynamicBehavior.allowsRotation = YES;
     bottomSideDynamicBehavior.density = 0;
@@ -79,28 +98,45 @@
     ballDynamicBehavior.angularResistance = 0.0;
     [dynamicAnimator addBehavior:ballDynamicBehavior];
     
-    collisionBehavior.collisionMode = UICollisionBehaviorModeItems;
+    collisionBehavior.collisionMode = UICollisionBehaviorModeEverything;
     collisionBehavior.translatesReferenceBoundsIntoBoundary = YES;
     collisionBehavior.collisionDelegate = self;
     [dynamicAnimator addBehavior:collisionBehavior];
-    
-
-    self.blocks = [NSMutableArray new];
-    self.scoreLabel.text = @"0";
-    
-    [self blockCreator];
-    [self gameStartBlockResetHelper];
-}
-
-- (void)gameStartBlockResetHelper
-{
-    for (BlockView *block in self.blocks) {
-        block.alpha = 1.0;
-    }
 }
 
 - (void)blockCreator
 {
+    for (BlockView *leftoverBlock in self.view.subviews) {
+        if ([leftoverBlock isKindOfClass:[BlockView class]]) {
+            [leftoverBlock removeFromSuperview];
+        }
+    }
+    
+    self.blocks = [NSMutableArray new];
+    
+    //    UIImage *blockRed = [[UIImage alloc] init];
+    //    UIImage *blockYellow = [[UIImage alloc] init];
+    //    UIImage *blockGreen = [[UIImage alloc] init];
+    //
+    //    blockRed = [UIImage imageNamed:@"breakout_block_red"];
+    //    blockYellow = [UIImage imageNamed:@"breakout_block_yellow"];
+    //    blockGreen = [UIImage imageNamed:@"breakout_block_green"];
+    //
+    //    NSArray *colors = @[blockRed,
+    //                        blockYellow,
+    //                        blockGreen];
+    //
+    //    for (int i = 0; i < 5; i++) {
+    //        int row = i;
+    //        for (int i = 0; i < 6; i++) {
+    //            BlockView *blockView = [[BlockView alloc]initWithFrame:CGRectMake((25+(i*45)), (150+(row*15)), 45, 15)];
+    //            blockView.blockImage.image = colors[arc4random()%3];
+    //            [self.view addSubview:blockView];
+    //            [self.blocks addObject:blockView];
+    //            [collisionBehavior addItem:blockView];
+    //        }
+    //    }
+    
     NSArray *colors = @[[UIColor redColor],
                         [UIColor yellowColor],
                         [UIColor greenColor]];
@@ -122,6 +158,37 @@
     [dynamicAnimator addBehavior:blockDynamicBehavior];
 }
 
+- (void)ballStop
+{
+    self.ballView.center = self.view.center;
+    self.ballView.alpha = 0.0;
+    
+    CGPoint cancelVelocity = CGPointMake([ballDynamicBehavior linearVelocityForItem:self.ballView].x * -1.0,
+                                         [ballDynamicBehavior linearVelocityForItem:self.ballView].y * -1.0);
+    [ballDynamicBehavior addLinearVelocity:cancelVelocity forItem:self.ballView];
+    [dynamicAnimator updateItemUsingCurrentState:self.ballView];
+}
+
+- (void)ballPrepareToShoot
+{
+    CGPoint cancelVelocity = CGPointMake([ballDynamicBehavior linearVelocityForItem:self.ballView].x * -1.0,
+                                         [ballDynamicBehavior linearVelocityForItem:self.ballView].y * -1.0);
+    [ballDynamicBehavior addLinearVelocity:cancelVelocity forItem:self.ballView];
+    [dynamicAnimator updateItemUsingCurrentState:self.ballView];
+    
+    [UIView animateWithDuration:1.0 animations:^{
+        self.ballView.alpha = 1.0;
+        self.ballShootButton.alpha = 1.0;
+    }];
+}
+
+- (void)ballOriginalVelocitySetter
+{
+    CGPoint originalVelocity = CGPointMake(300.0, 500.0);
+    [ballDynamicBehavior addLinearVelocity:originalVelocity forItem:self.ballView];
+    [dynamicAnimator updateItemUsingCurrentState:self.ballView];
+}
+
 - (BOOL)shouldStartAgain
 {
     BOOL startOrNo;
@@ -134,30 +201,102 @@
     return startOrNo;
 }
 
-#pragma mark - collider methods
+#pragma mark - pan gesture recognizer delegate methods
 
 - (IBAction)dragPaddle:(UIPanGestureRecognizer *)panGestureRecognizer
 {
     self.paddleView.center = CGPointMake([panGestureRecognizer locationInView:self.view].x, self.paddleView.center.y);
     [dynamicAnimator updateItemUsingCurrentState:self.paddleView];
-}
-
--(void)collisionBehavior:(UICollisionBehavior *)behavior beganContactForItem:(id<UIDynamicItem>)item withBoundaryIdentifier:(id<NSCopying>)identifier atPoint:(CGPoint)p
-{
-    if (self.ballView.frame.origin.y > self.view.frame.size.height-15) {
-        self.ballView.center = self.view.center;
+    
+    if (self.loaded) {
+        self.ballView.center = CGPointMake([panGestureRecognizer locationInView:self.view].x, self.paddleView.center.y - 45);
+        [dynamicAnimator updateItemUsingCurrentState:self.ballView];
+        [self ballPrepareToShoot];
     }
     
-    [dynamicAnimator updateItemUsingCurrentState:self.ballView];
+    
 }
+
+- (IBAction)ballShoot:(id)sender {
+    CGFloat shootAngle;
+    shootAngle = (self.paddleView.center.x - 160.0)*3;
+    
+    CGPoint originalVelocity = CGPointMake(shootAngle, -500.0);
+    [ballDynamicBehavior addLinearVelocity:originalVelocity forItem:self.ballView];
+    [dynamicAnimator updateItemUsingCurrentState:self.ballView];
+    [UIView animateWithDuration:1.0 animations:^{
+        self.ballShootButton.alpha = 0.0;
+    }];
+    self.loaded = NO;
+}
+
+#pragma mark - collision delegate methods
 
 -(void)collisionBehavior:(UICollisionBehavior *)behavior beganContactForItem:(id<UIDynamicItem>)item1 withItem:(id<UIDynamicItem>)item2 atPoint:(CGPoint)p
 {
+    // Checks if the ball collides with the bottoms of the screen
+    if ([item1 isEqual:self.bottomSideView] && [item2 isEqual:self.ballView])
+    {
+        self.livesCounter--;
+        
+        if (self.livesCounter >= 0) {
+            self.livesLabel.text = [NSString stringWithFormat:@"%i",self.livesCounter];
+            [self ballStop];
+            self.loaded = YES;
+        }
+        else
+        {
+            UIAlertView *gameOverAlert = [[UIAlertView alloc] initWithTitle:@"Game Over!"
+                                                                  message:[NSString stringWithFormat:@"You got %@ points!", self.scoreLabel.text]
+                                                                 delegate:self
+                                                        cancelButtonTitle:@"Play again!"
+                                                        otherButtonTitles:nil];
+            [gameOverAlert show];
+            [self ballStop];
+        }
+    }
+    
+    // Determines the behavior of the ball after it collides with the paddle
+    if ([item1 isEqual:self.paddleView] && [item2 isEqual:self.ballView])
+    {        
+        CGFloat correctionDifference = ([ballDynamicBehavior linearVelocityForItem:self.ballView].x) * -0.25;
+        CGPoint correctionVelocity = CGPointMake(correctionDifference, 0);
+        [ballDynamicBehavior addLinearVelocity:correctionVelocity forItem:self.ballView];
+        [dynamicAnimator updateItemUsingCurrentState:self.ballView];
+        
+        CGPoint antiVelocity = CGPointMake((p.x - self.paddleView.center.x) * 2.5, 0);
+        [ballDynamicBehavior addLinearVelocity:antiVelocity forItem:self.ballView];
+        [dynamicAnimator updateItemUsingCurrentState:self.ballView];
+    }
+    
+    // Calculated the score added from colliding with blocks
     if ([item1 isKindOfClass:[BallView class]] && [item2 isKindOfClass:[BlockView class]]) {
         
         int addToScore = 0;
         
         NSMutableArray *markedForDeletion = [NSMutableArray new];
+        
+//        for (BlockView *block in self.blocks) {
+//            if ([item2 isEqual:block]) {
+//                if (block.blockImage.image == self.blockRed)
+//                {
+//                    block.blockImage.image = self.blockYellow;
+//                    addToScore += 25;
+//                }
+//                else if (block.blockImage.image == self.blockYellow)
+//                {
+//                    block.blockImage.image = self.blockGreen;
+//                    addToScore += 50;
+//                }
+//                else if (block.blockImage.image == self.blockGreen)
+//                {
+//                    [collisionBehavior removeItem:block];
+//                    [UIView animateWithDuration:0.5 animations:^{block.alpha = 0.0;}];
+//                    [markedForDeletion addObject:block];
+//                    addToScore += 100;
+//                }
+//            }
+//        }
         
         for (BlockView *block in self.blocks) {
             if ([item2 isEqual:block]) {
@@ -186,16 +325,16 @@
         [self.blocks removeObjectsInArray:markedForDeletion];
     }
     
-    
+    // Checks if the game should start again
     if([self shouldStartAgain])
     {
-        dynamicAnimator = nil;
         UIAlertView *winnerAlert = [[UIAlertView alloc] initWithTitle:@"Winner!"
                                                               message:[NSString stringWithFormat:@"You got %@ points!", self.scoreLabel.text]
                                                              delegate:self
                                                     cancelButtonTitle:@"Play again!"
                                                     otherButtonTitles:nil];
         [winnerAlert show];
+        [self ballStop];
     };
 }
 
